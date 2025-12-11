@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Wander | City Explorer</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * {
+            margin: 0; padding: 0; box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        :root {
+            --primary: #0f172a;
+            --accent: #8b5cf6;
+            --light: #f8fafc;
+            --gray: #94a3b8;
+        }
+        body {
+            background: var(--primary);
+            color: var(--light);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        header {
+            text-align: center;
+            margin: 24px 0 40px;
+            padding: 0 16px;
+        }
+        h1 {
+            font-size: 2.8rem;
+            font-weight: 800;
+            background: linear-gradient(90deg, #e2e8f0, #a78bfa);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            letter-spacing: -0.5px;
+            margin-bottom: 8px;
+        }
+        .subtitle {
+            color: var(--gray);
+            font-size: 1.1rem;
+            max-width: 600px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 28px;
+            padding: 0 12px;
+        }
+        .city {
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 20px;
+            overflow: hidden;
+            transition: transform 0.3s ease;
+            cursor: pointer;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+        .city:hover {
+            transform: translateY(-8px);
+        }
+        .city-img {
+            width: 100%;
+            height: 220px;
+            object-fit: cover;
+            display: block;
+        }
+        .city-info {
+            padding: 20px;
+        }
+        .city-name {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-bottom: 6px;
+            color: white;
+        }
+        .city-desc {
+            color: var(--gray);
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+        .trip-tag {
+            display: inline-block;
+            background: rgba(139, 92, 246, 0.15);
+            color: #c4b5fd;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            margin-top: 12px;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(10px);
+            z-index: 100;
+            animation: fade-in 0.3s;
+        }
+        @keyframes fade-in {
+            from { opacity: 0; } to { opacity: 1; }
+        }
+        .modal-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 94%;
+            max-width: 1100px;
+            max-height: 92vh;
+            background: #0f172a;
+            border-radius: 28px;
+            overflow: hidden;
+            display: flex;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        .modal-left {
+            flex: 1;
+            padding: 32px;
+            overflow-y: auto;
+        }
+        .modal-title {
+            font-size: 2.2rem;
+            font-weight: 800;
+            margin-bottom: 24px;
+            background: linear-gradient(90deg, white, #a78bfa);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        .tabs {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 28px;
+            flex-wrap: wrap;
+        }
+        .tab {
+            padding: 10px 22px;
+            background: rgba(139, 92, 246, 0.1);
+            border-radius: 14px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+            color: #c4b5fd;
+        }
+        .tab:hover, .tab.active {
+            background: linear-gradient(90deg, #8b5cf6, #a78bfa);
+            color: white;
+        }
+        .day-content {
+            display: none;
+        }
+        .day-content.active {
+            display: block;
+            animation: slide-up 0.4s;
+        }
+        @keyframes slide-up {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .itinerary {
+            list-style: none;
+        }
+        .itinerary li {
+            padding: 14px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+        }
+        .itinerary li:last-child {
+            border-bottom: none;
+        }
+        .itinerary li::before {
+            content: "•";
+            color: #8b5cf6;
+            font-size: 1.8rem;
+            line-height: 1;
+            margin-top: 3px;
+        }
+        .modal-right {
+            width: 50%;
+            position: relative;
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+            background: #0f172a;
+        }
+        .close {
+            position: absolute;
+            top: 24px;
+            right: 24px;
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: white;
+            font-size: 1.4rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 101;
+        }
+        .close:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        .loading {
+            position: absolute;
+            inset: 0;
+            background: rgba(15,23,42,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+        .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid rgba(139,92,246,0.3);
+            border-top: 3px solid #8b5cf6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        @media (max-width: 900px) {
+            .modal-content {
+                flex-direction: column;
+                max-height: 95vh;
+                width: 96%;
+            }
+            .modal-right {
+                width: 100%;
+                height: 400px;
+            }
+        }
+        @media (max-width: 600px) {
+            h1 { font-size: 2.1rem; }
+            .grid { grid-template-columns: 1fr; gap: 20px; }
+            .modal-left { padding: 24px 20px; }
+            .tabs { gap: 8px; }
+            .tab { padding: 8px 16px; font-size: 0.95rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Wander</h1>
+            <p class="subtitle">Explore stunning cities with 3-day itineraries. Click any destination to plan your adventure.</p>
+        </header>
+        <div class="grid" id="cityGrid"></div>
+    </div>
+
+    <div class="modal" id="modal">
+        <button class="close" onclick="closeModal()">×</button>
+        <div class="modal-content">
+            <div class="modal-left" id="modalContent"></div>
+            <div class="modal-right">
+                <div class="loading" id="mapLoader">
+                    <div class="spinner"></div>
+                </div>
+                <div id="map"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const cities = [
+            {
+                name: "Kyoto, Japan",
+                img: "https://images.unsplash.com/photo-1543857778-c4a1a569e7bd?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&h=400&q=80",
+                desc: "Ancient temples, bamboo forests, and traditional tea houses in Japan's cultural heart.",
+                coords: { lat: 35.0116, lng: 135.7681 },
+                days: {
+                    "Day 1": ["Fushimi Inari Shrine", "Kiyomizu-dera Temple", "Gion District", "Kaiseki Dinner"],
+                    "Day 2": ["Arashiyama Bamboo Grove", "Tenryu-ji Temple", "Philosopher's Path", "Nishiki Market"],
+                    "Day 3": ["Kinkaku-ji (Golden Pavilion)", "Ryoan-ji Rock Garden", "Nijo Castle", "Geisha Performance"]
+                }
+            },
+            {
+                name: "Santorini, Greece",
+                img: "https://images.unsplash.com/photo-1566576721346-d4a3b4eaeb55?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&h=400&q=80",
+                desc: "Iconic blue domes, whitewashed villages, and breathtaking sunsets over the caldera.",
+                coords: { lat: 36.3932, lng: 25.4615 },
+                days: {
+                    "Day 1": ["Oia Sunset", "Blue Domes", "Amoudi Bay", "Cliffside Dinner"],
+                    "Day 2": ["Fira Town", "Cable Car Ride", "Red Beach", "Wine Tasting"],
+                    "Day 3": ["Akrotiri Ruins", "Perissa Beach", "Santo Wines", "Catamaran Cruise"]
+                }
+            },
+            {
+                name: "Bali, Indonesia",
+                img: "https://images.unsplash.com/photo-1523318139815-9171b7d131c0?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&h=400&q=80",
+                desc: "Lush jungles, volcanic mountains, and spiritual temples in paradise.",
+                coords: { lat: -8.3405, lng: 115.0920 },
+                days: {
+                    "Day 1": ["Ubud Monkey Forest", "Tegallalang Rice Terraces", "Ubud Palace", "Traditional Dance"],
+                    "Day 2": ["Tanah Lot Temple", "Uluwatu Cliff Temple", "Seminyak Beach", "Spa Experience"],
+                    "Day 3": ["Mount Batur Sunrise", "Tirta Empul Temple", "Nusa Penida Day Trip", "Beach Club"]
+                }
+            },
+            {
+                name: "Barcelona, Spain",
+                img: "https://images.unsplash.com/photo-1517203627558-2a954f57e0b0?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&h=400&q=80",
+                desc: "Gaudí architecture, Gothic Quarter charm, and Mediterranean beach vibes.",
+                coords: { lat: 41.3851, lng: 2.1734 },
+                days: {
+                    "Day 1": ["Sagrada Família", "Park Güell", "La Rambla", "Gothic Quarter"],
+                    "Day 2": ["Casa Batlló", "Passeig de Gràcia", "Barceloneta Beach", "Tapas Tour"],
+                    "Day 3": ["Camp Nou", "Montjuïc Hill", "Boqueria Market", "Flamenco Show"]
+                }
+            },
+            {
+                name: "Reykjavik, Iceland",
+                img: "https://images.unsplash.com/photo-1533279683912-0eb5b2aa24a5?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&h=400&q=80",
+                desc: "Dramatic landscapes, geothermal lagoons, and Northern Lights adventures.",
+                coords: { lat: 64.1466, lng: -21.9426 },
+                days: {
+                    "Day 1": ["Hallgrímskirkja Church", "Harpa Concert Hall", "Reykjavik Harbor", "Sky Lagoon"],
+                    "Day 2": ["Golden Circle Tour", "Geysir & Gullfoss", "Thingvellir National Park", "Lava Fields"],
+                    "Day 3": ["Blue Lagoon", "Reykjanes Peninsula", "Volcanic Craters", "Northern Lights Hunt"]
+                }
+            },
+            {
+                name: "Cape Town, South Africa",
+                img: "https://images.unsplash.com/photo-1523318139815-9171b7d131c0?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&h=400&q=80",
+                desc: "Table Mountain majesty, coastal drives, and vibrant cultural fusion.",
+                coords: { lat: -33.9249, lng: 18.4241 },
+                days: {
+                    "Day 1": ["Table Mountain", "V&A Waterfront", "Robben Island", "Sea Point Promenade"],
+                    "Day 2": ["Cape of Good Hope", "Penguin Colony", "Stellenbosch Vineyards", "Kirstenbosch Gardens"],
+                    "Day 3": ["Bo-Kaap", "Muizenberg Beach", "Kalk Bay", "Chapman's Peak Drive"]
+                }
+            }
+        ];
+
+        let currentMap = null;
+        let markers = [];
+
+        function init() {
+            const grid = document.getElementById('cityGrid');
+            grid.innerHTML = cities.map(city => `
+                <div class="city" onclick="openModal('${city.name}')">
+                    <img src="${city.img}" alt="${city.name}" class="city-img">
+                    <div class="city-info">
+                        <div class="city-name">${city.name}</div>
+                        <div class="city-desc">${city.desc}</div>
+                        <div class="trip-tag">3-Day Itinerary</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function openModal(cityName) {
+            const city = cities.find(c => c.name === cityName);
+            const modal = document.getElementById('modal');
+            const content = document.getElementById('modalContent');
+            
+            let html = `<div class="modal-title">${city.name}</div>`;
+            
+            html += `<div class="tabs">`;
+            Object.keys(city.days).forEach((day, i) => {
+                html += `<div class="tab ${i === 0 ? 'active' : ''}" onclick="showDay('${day}', '${cityName}')">${day}</div>`;
+            });
+            html += `</div>`;
+            
+            Object.keys(city.days).forEach((day, i) => {
+                html += `<div class="day-content ${i === 0 ? 'active' : ''}" id="content-${day}-${cityName.replace(/\s/g, '-')}">
+                    <ul class="itinerary">`;
+                city.days[day].forEach(item => {
+                    html += `<li>${item}</li>`;
+                });
+                html += `</ul></div>`;
+            });
+            
+            content.innerHTML = html;
+            initMap(city);
+            modal.style.display = 'block';
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal() {
+            document.getElementById('modal').style.display = 'none';
+            document.body.style.overflow = 'auto';
+            if (currentMap) {
+                currentMap.remove();
+                currentMap = null;
+            }
+        }
+
+        function showDay(day, cityName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            document.querySelectorAll('.day-content').forEach(d => d.classList.remove('active'));
+            document.getElementById(`content-${day}-${cityName.replace(/\s/g, '-')}`).classList.add('active');
+            
+            const city = cities.find(c => c.name === cityName);
+            updateMap(city, day);
+        }
+
+        function initMap(city) {
+            document.getElementById('mapLoader').style.display = 'flex';
+            
+            if (currentMap) currentMap.remove();
+            markers = [];
+            
+            currentMap = L.map('map').setView([city.coords.lat, city.coords.lng], 11);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap'
+            }).addTo(currentMap);
+            
+            const cityMarker = L.marker([city.coords.lat, city.coords.lng]).addTo(currentMap);
+            cityMarker.bindPopup(`<b>${city.name}</b><br>City Center`).openPopup();
+            markers.push(cityMarker);
+            
+            updateMap(city, "Day 1");
+            
+            setTimeout(() => {
+                document.getElementById('mapLoader').style.display = 'none';
+            }, 800);
+        }
+
+        function updateMap(city, day) {
+            markers.slice(1).forEach(m => m.remove());
+            markers = [markers[0]];
+            
+            const attractions = city.days[day];
+            const baseLat = city.coords.lat;
+            const baseLng = city.coords.lng;
+            const spread = 0.12;
+            
+            attractions.forEach((attr, i) => {
+                const lat = baseLat + (Math.random() - 0.5) * spread;
+                const lng = baseLng + (Math.random() - 0.5) * spread;
+                const marker = L.marker([lat, lng]).addTo(currentMap);
+                marker.bindPopup(`<b>${attr}</b><br>${day}`);
+                markers.push(marker);
+            });
+            
+            if (markers.length > 1) {
+                const group = L.featureGroup(markers);
+                currentMap.fitBounds(group.getBounds(), { padding: [50, 50] });
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', init);
+        document.getElementById('modal').addEventListener('click', e => {
+            if (e.target === document.getElementById('modal')) closeModal();
+        });
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') closeModal();
+        });
+    </script>
+</body>
+</html>
+
